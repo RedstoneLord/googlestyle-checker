@@ -71,20 +71,30 @@ export function mask(lines: string[]): string[] {
 
 const fok = /^[A-Z][A-Za-z0-9]*$/;
 const cok = /^k[A-Z][A-Za-z0-9]*$/;
-const vok = /^[a-z]+(_[a-z]+)*$/;
+const vok = /^[a-z][a-z0-9]*(_[a-z0-9]+)*_?$/;
 
-const f = /^(\s*(?:[\w:<>,*&~]+\s+)+)([A-Za-z_]\w*)\s*\([^;]*\{\s*$/;
-const c = /^(.*?\bconst\s+(?:[\w:]+\s+)+)([A-Za-z_]\w*)\s*(?:=|\{|\[)/;
-const v = /^(\s*(?:[A-Za-z_]\w*[\s*&]+)+?)([A-Za-z_]\w*)\s*(?:=|;|\[|\{)/;
+const f = /^(\s*(?:[\w:<>,*&~]+\s+)+?[*&\s]*(?:[A-Za-z_]\w*::)*)([A-Za-z_]\w*)\s*\([^;]*\{\s*$/;
+const c = /^(.*?\b(?:const|constexpr)\s+(?:[\w:]+(?:<[^<>]*>)?\s+)+)([A-Za-z_]\w*)\s*(?:=|\{|\[)/;
+const v = /^(\s*(?:[A-Za-z_][\w:]*(?:<(?:[^<>]|<[^<>]*>)*>)?[\s*&]+)+?)([A-Za-z_]\w*)\s*(?:=(?!=)|;|\[|\{)/;
 
+const NOT_A_TYPE = new Set([
+    'return', 'else', 'delete', 'new', 'throw', 'goto', 'case', 'using', 'typedef',
+    'namespace', 'class', 'struct', 'enum', 'union', 'template', 'friend', 'public',
+    'private', 'protected', 'if', 'for', 'while', 'switch', 'do',
+]);
 const NOT_A_FUNCTION = new Set(['if', 'for', 'while', 'switch', 'catch', 'else']);
 
 function problemer(rule: string, message: string, i: number, match: RegExpExecArray): Problem {
+    const before = match[1];
     const name = match[2];
-    const start = match.index;
+    const start = before.length;
     const end = start + name.length;
 
     return { rule: rule, message: message, line: i, start: start, end: end };
+}
+
+function first(line: string): string {
+    return /^\s*(\w+)/.exec(line)![1];
 }
 
 export function naming(text: string): Problem[] {
@@ -102,6 +112,7 @@ export function naming(text: string): Problem[] {
                 const message = `Function "${fname}" should be PascalCase, like "AddItem"`;
                 probs.push(problemer('NAME-FUNC', message, i, fmatch));
             }
+            continue;
         }
 
         const cmatch = c.exec(line);
@@ -111,10 +122,12 @@ export function naming(text: string): Problem[] {
                 const message = `Constant "${cname}" should start with k and use CamelCase, like "kBufSize"`;
                 probs.push(problemer('NAME-CONST', message, i, cmatch));
             }
+            continue;
         }
 
         const vmatch = v.exec(line);
-        if (vmatch) {
+        const ignore = NOT_A_TYPE.has(first(line));
+        if (vmatch && !ignore) {
             const vname = vmatch[2];
             if (!vok.test(vname)) {
                 const message = `Variable "${vname}" should be snake_case, like "file_count"`;
