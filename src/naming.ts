@@ -1,3 +1,12 @@
+/**
+ * Интерфейс проблемыы
+ *
+ * Поля: rule (string) - код правила,
+ * message (string) - текст сообщения для пользователя,
+ * line (number) - номер строки (с нуля),
+ * start (number) - позиция начала имени в строке,
+ * end (number) - позиция конца имени в строке (не включительно)
+ */
 export interface Problem {
     rule: string;
     message: string;
@@ -6,11 +15,26 @@ export interface Problem {
     end: number;
 }
 
+/**
+ * Маскернутая строка
+ *
+ * Поля: text (string) - строка, где комментарии и содержимое строк заменены пробелами,
+ * inBlock (boolean) - true, если блочный комментарий не закончился в конце строки
+ */
 interface MaskedLine {
     text: string;
     inBlock: boolean;
 }
 
+/**
+ * Заменяет пробелами комментарии и строки в одной строке.
+ *
+ * Ввод: line (string) - строка кода, block (boolean) - true, если строка начинается внутри блочного комментария
+ * Вывод: MaskedLine
+ *
+ * Пример использования:
+ * masker('f("hi");', false) = { text: 'f("  ");', inBlock: false }
+ */
 function masker(line: string, block: boolean): MaskedLine {
     const chars = line.split('');
     let inBlock = block;
@@ -66,6 +90,15 @@ function masker(line: string, block: boolean): MaskedLine {
     return res;
 }
 
+/**
+ * Очищает весь текст от комментариев и содержимого строк, запоминая состояние блочного комментария между строками.
+ *
+ * Ввод: lines (string[]) - строки исходного кода
+ * Вывод: mask (string[]) - строки той же длины, где комментарии и содержимое строк заменены пробелами
+ *
+ * Пример использования:
+ * mask(['int a; // x', 'int b;']) = ['int a;     ', 'int b;']
+ */
 export function mask(lines: string[]): string[] {
     const masked: string[] = [];
     let inBlock = false;
@@ -93,8 +126,20 @@ const NOT_A_TYPE = new Set([
     'namespace', 'class', 'struct', 'enum', 'union', 'template', 'friend', 'public',
     'private', 'protected', 'if', 'for', 'while', 'switch', 'do',
 ]);
+
 const NOT_A_FUNCTION = new Set(['if', 'for', 'while', 'switch', 'catch', 'else', 'main']);
 
+/**
+ * Создаёт Problem по результату regex.
+ *
+ * Ввод: rule (string) - код правила, message (string) - сообщение,
+ * i (number) - номер строки, match (RegExpExecArray) - совпадение (группа 1 - всё до имени, группа 2 - имя)
+ * Вывод: problemer (Problem) - проблема с позицией имени в строке
+ *
+ * Пример использования:
+ * problemer('NAME-VAR', 'msg', 0, match) = { rule: 'NAME-VAR', message: 'msg', line: 0, start: 4, end: 9 }
+ * (для строки 'int MyVar = 1;')
+ */
 function problemer(rule: string, message: string, i: number, match: RegExpExecArray): Problem {
     const before = match[1];
     const name = match[2];
@@ -111,6 +156,16 @@ function problemer(rule: string, message: string, i: number, match: RegExpExecAr
     return problem;
 }
 
+/**
+ * Возвращает первое слово строки.
+ *
+ * Ввод: line (string) - строка кода
+ * Вывод: first (string) - первое слово или '', если слова нет
+ *
+ * Пример использования:
+ * first('  return x;') = 'return'
+ * first('}') = ''
+ */
 function first(line: string): string {
     const match = /^\s*(\w+)/.exec(line);
     if (match == null || match == undefined) {
@@ -123,6 +178,15 @@ function first(line: string): string {
     return word;
 }
 
+/**
+ * Проверяет имена функций, констант и переменных в C++ коде по Google C++ Style.
+ *
+ * Ввод: text (string) - исходный код целиком
+ * Вывод: naming (Problem[]) - список проблем
+ *
+ * Пример использования:
+ * naming('int MyVar = 1;') = [{ rule: 'NAME-VAR', message: 'Variable "MyVar" should be snake_case, like "file_count"', line: 0, start: 4, end: 9 }]
+ */
 export function naming(text: string): Problem[] {
     const orig = text.split(/\r\n|\r|\n/);
     const masked = mask(orig);
