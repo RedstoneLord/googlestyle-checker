@@ -76,3 +76,52 @@ const vok = /^[a-z]+(_[a-z]+)*$/;
 const f = /^(\s*(?:[\w:<>,*&~]+\s+)+)([A-Za-z_]\w*)\s*\([^;]*\{\s*$/;
 const c = /^(.*?\bconst\s+(?:[\w:]+\s+)+)([A-Za-z_]\w*)\s*(?:=|\{|\[)/;
 const v = /^(\s*(?:[A-Za-z_]\w*[\s*&]+)+?)([A-Za-z_]\w*)\s*(?:=|;|\[|\{)/;
+
+const NOT_A_FUNCTION = new Set(['if', 'for', 'while', 'switch', 'catch', 'else']);
+
+function problemer(rule: string, message: string, i: number, match: RegExpExecArray): Problem {
+    const name = match[2];
+    const start = match.index;
+    const end = start + name.length;
+
+    return { rule: rule, message: message, line: i, start: start, end: end };
+}
+
+export function naming(text: string): Problem[] {
+    const orig = text.split(/\r\n|\r|\n/);
+    const masked = mask(orig);
+    const probs: Problem[] = [];
+
+    for (let i = 0; i < masked.length; i++) {
+        const line = masked[i];
+
+        const fmatch = f.exec(line);
+        if (fmatch) {
+            const fname = fmatch[2];
+            if (!NOT_A_FUNCTION.has(fname) && !fok.test(fname)) {
+                const message = `Function "${fname}" should be PascalCase, like "AddItem"`;
+                probs.push(problemer('NAME-FUNC', message, i, fmatch));
+            }
+        }
+
+        const cmatch = c.exec(line);
+        if (cmatch) {
+            const cname = cmatch[2];
+            if (!cok.test(cname)) {
+                const message = `Constant "${cname}" should start with k and use CamelCase, like "kBufSize"`;
+                probs.push(problemer('NAME-CONST', message, i, cmatch));
+            }
+        }
+
+        const vmatch = v.exec(line);
+        if (vmatch) {
+            const vname = vmatch[2];
+            if (!vok.test(vname)) {
+                const message = `Variable "${vname}" should be snake_case, like "file_count"`;
+                probs.push(problemer('NAME-VAR', message, i, vmatch));
+            }
+        }
+    }
+
+    return probs;
+}
