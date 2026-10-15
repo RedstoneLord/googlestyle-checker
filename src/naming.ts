@@ -33,7 +33,7 @@ interface MaskedLine {
  * Вывод: MaskedLine
  *
  * Пример использования:
- * masker('f("hi");', false) = { text: 'f("  ");', inBlock: false }
+ * masker('any_function("hi");', false) = { text: 'any_function("  ");', inBlock: false }
  */
 function masker(line: string, block: boolean): MaskedLine {
     const chars = line.split('');
@@ -109,13 +109,13 @@ export function mask(lines: string[]): string[] {
     return masked;
 }
 
-const fok = /^[A-Z][A-Za-z0-9]*$/;
-const cok = /^k[A-Z][A-Za-z0-9]*$/;
-const vok = /^[a-z][a-z0-9]*(_[a-z0-9]+)*_?$/;
+const correct_function = /^[A-Z][A-Za-z0-9]*$/;
+const correct_const = /^k[A-Z][A-Za-z0-9]*$/;
+const correct_var = /^[a-z][a-z0-9]*(_[a-z0-9]+)*_?$/;
 
-const f = /^(\s*(?:[\w:<>,*&~]+\s+)+?[*&\s]*(?:[A-Za-z_]\w*::)*)([A-Za-z_]\w*)\s*\([^;]*\{\s*$/;
-const c = /^(.*?\b(?:const|constexpr)\s+(?:[\w:]+(?:<[^<>]*>)?\s+)+)([A-Za-z_]\w*)\s*(?:=|\{|\[)/;
-const v = /^(\s*(?:[A-Za-z_][\w:]*(?:<(?:[^<>]|<[^<>]*>)*>)?[\s*&]+)+?)([A-Za-z_]\w*)\s*(?:=(?!=)|;|\[|\{)/;
+const any_function = /^(\s*(?:[\w:<>,*&~]+\s+)+?[*&\s]*(?:[A-Za-z_]\w*::)*)([A-Za-z_]\w*)\s*\([^;]*\{\s*$/;
+const any_constant = /^(.*?\b(?:const|constexpr)\s+(?:[\w:]+(?:<[^<>]*>)?\s+)+)([A-Za-z_]\w*)\s*(?:=|\{|\[)/;
+const any_variable = /^(\s*(?:[A-Za-z_][\w:]*(?:<(?:[^<>]|<[^<>]*>)*>)?[\s*&]+)+?)([A-Za-z_]\w*)\s*(?:=(?!=)|;|\[|\{)/;
 
 const NOT_A_TYPE = new Set([
     'return', 'else', 'delete', 'new', 'throw', 'goto', 'case', 'using', 'typedef',
@@ -163,7 +163,7 @@ function first(line: string): string {
 }
 
 /**
- * Проверяет имена функций, констант и переменных в C++ коде по Google C++ Style.
+ * Проверяет имена функций, констант и переменных в C++ коде по gogle code style.
  *
  * Ввод: text (string) - исходный код целиком
  * Вывод: naming (Problem[]) - список проблем
@@ -178,12 +178,12 @@ export function naming(text: string): Problem[] {
 
     for (let i = 0; i < masked.length; i++) {
         const line = masked[i];
-        const fmatch = f.exec(line);
+        const fmatch = any_function.exec(line);
 
         if (fmatch) {
             const name = fmatch[2];
 
-            if (!NOT_A_FUNCTION.has(name) && !fok.test(name)) {
+            if (!NOT_A_FUNCTION.has(name) && !correct_function.test(name)) {
                 probs.push(problemer(
                     'NAME-FUNC',
                     `Function "${name}" should be PascalCase, like "AddItem"`,
@@ -195,12 +195,12 @@ export function naming(text: string): Problem[] {
             continue;
         }
 
-        const cmatch = c.exec(line);
+        const cmatch = any_constant.exec(line);
 
         if (cmatch) {
             const name = cmatch[2];
 
-            if (!cok.test(name)) {
+            if (!correct_const.test(name)) {
                 probs.push(problemer(
                     'NAME-CONST',
                     `Constant "${name}" should start with k and use CamelCase, like "kBufSize"`,
@@ -216,9 +216,9 @@ export function naming(text: string): Problem[] {
             continue;
         }
 
-        const vmatch = v.exec(line);
+        const vmatch = any_variable.exec(line);
 
-        if (vmatch && !NOT_A_TYPE.has(first(line)) && !vok.test(vmatch[2])) {
+        if (vmatch && !NOT_A_TYPE.has(first(line)) && !correct_var.test(vmatch[2])) {
             const name = vmatch[2];
 
             probs.push(problemer(
