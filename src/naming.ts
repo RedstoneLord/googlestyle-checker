@@ -66,14 +66,15 @@ function masker(line: string, block: boolean): MaskedLine {
             const quote = cur;
             i++;
 
-            while (i < line.length && line[i] !== quote) {
+            while (i < line.length && line[i] != quote) {
                 if (line[i] == '\\') {
                     chars[i] = ' ';
-                    i = i + 1;
+                    i++;
                 }
+
                 if (i < line.length) {
                     chars[i] = ' ';
-                    i = i + 1;
+                    i++;
                 }
             }
 
@@ -83,11 +84,7 @@ function masker(line: string, block: boolean): MaskedLine {
         }
     }
 
-    const res: MaskedLine = {
-        text: chars.join(''),
-        inBlock: inBlock,
-    };
-    return res;
+    return { text: chars.join(''), inBlock };
 }
 
 /**
@@ -104,10 +101,9 @@ export function mask(lines: string[]): string[] {
     let inBlock = false;
 
     for (let i = 0; i < lines.length; i++) {
-        const cur = lines[i];
-        const res = masker(cur, inBlock);
-        inBlock = res.inBlock;
-        masked.push(res.text);
+        const result = masker(lines[i], inBlock);
+        inBlock = result.inBlock;
+        masked.push(result.text);
     }
 
     return masked;
@@ -141,19 +137,15 @@ const NOT_A_FUNCTION = new Set(['if', 'for', 'while', 'switch', 'catch', 'else',
  * (для строки 'int MyVar = 1;')
  */
 function problemer(rule: string, message: string, i: number, match: RegExpExecArray): Problem {
-    const before = match[1];
-    const name = match[2];
-    const start = before.length;
-    const end = start + name.length;
+    const start = match[1].length;
 
-    const problem: Problem = {
-        rule: rule,
-        message: message,
+    return {
+        rule,
+        message,
         line: i,
-        start: start,
-        end: end,
+        start,
+        end: start + match[2].length,
     };
-    return problem;
 }
 
 /**
@@ -167,15 +159,7 @@ function problemer(rule: string, message: string, i: number, match: RegExpExecAr
  * first('}') = ''
  */
 function first(line: string): string {
-    const match = /^\s*(\w+)/.exec(line);
-    if (match == null || match == undefined) {
-        return '';
-    }
-    const word = match[1];
-    if (word == undefined || word == null) {
-        return '';
-    }
-    return word;
+    return /^\s*(\w+)/.exec(line)?.[1] ?? '';
 }
 
 /**
@@ -188,55 +172,61 @@ function first(line: string): string {
  * naming('int MyVar = 1;') = [{ rule: 'NAME-VAR', message: 'Variable "MyVar" should be snake_case, like "file_count"', line: 0, start: 4, end: 9 }]
  */
 export function naming(text: string): Problem[] {
-    const orig = text.split(/\r\n|\r|\n/);
-    const masked = mask(orig);
+    const lines = text.split(/\r\n|\r|\n/);
+    const masked = mask(lines);
     const probs: Problem[] = [];
 
     for (let i = 0; i < masked.length; i++) {
         const line = masked[i];
-
         const fmatch = f.exec(line);
-        if (fmatch) {
-            const fname = fmatch[2];
-            const ignore = NOT_A_FUNCTION.has(fname);
-            const good = fok.test(fname);
 
-            if (!ignore && !good) {
-                const message = `Function "${fname}" should be PascalCase, like "AddItem"`;
-                probs.push(problemer('NAME-FUNC', message, i, fmatch));
+        if (fmatch) {
+            const name = fmatch[2];
+
+            if (!NOT_A_FUNCTION.has(name) && !fok.test(name)) {
+                probs.push(problemer(
+                    'NAME-FUNC',
+                    `Function "${name}" should be PascalCase, like "AddItem"`,
+                    i,
+                    fmatch,
+                ));
             }
+
             continue;
         }
 
         const cmatch = c.exec(line);
-        if (cmatch) {
-            const cname = cmatch[2];
-            const good = cok.test(cname);
 
-            if (!good) {
-                const message = `Constant "${cname}" should start with k and use CamelCase, like "kBufSize"`;
-                probs.push(problemer('NAME-CONST', message, i, cmatch));
+        if (cmatch) {
+            const name = cmatch[2];
+
+            if (!cok.test(name)) {
+                probs.push(problemer(
+                    'NAME-CONST',
+                    `Constant "${name}" should start with k and use CamelCase, like "kBufSize"`,
+                    i,
+                    cmatch,
+                ));
             }
+
             continue;
         }
 
-        const con = /\bconst(expr)?\b/.test(line);
-        if (con) {
+        if (/\bconst(expr)?\b/.test(line)) {
             continue;
         }
 
         const vmatch = v.exec(line);
-        const word = first(line);
-        const ignore = NOT_A_TYPE.has(word);
 
-        if (vmatch && !ignore) {
-            const vname = vmatch[2];
-            const good = vok.test(vname);
+        if (vmatch && !NOT_A_TYPE.has(first(line)) && !vok.test(vmatch[2])) {
+            const name = vmatch[2];
 
-            if (!good) {
-                const message = `Variable "${vname}" should be snake_case, like "file_count"`;
-                probs.push(problemer('NAME-VAR', message, i, vmatch));
-            }
+            probs.push(problemer(
+                'NAME-VAR',
+                `Variable "${name}" should be snake_case, like "file_count"`,
+                i,
+                vmatch,
+            ));
         }
     }
 
