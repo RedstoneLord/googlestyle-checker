@@ -117,13 +117,13 @@ const any_function = /^(\s*(?:[\w:<>,*&~]+\s+)+?[*&\s]*(?:[A-Za-z_]\w*::)*)([A-Z
 const any_constant = /^(.*?\b(?:const|constexpr)\s+(?:[\w:]+(?:<[^<>]*>)?\s+)+)([A-Za-z_]\w*)\s*(?:=|\{|\[)/;
 const any_variable = /^(\s*(?:[A-Za-z_][\w:]*(?:<(?:[^<>]|<[^<>]*>)*>)?[\s*&]+)+?)([A-Za-z_]\w*)\s*(?:=(?!=)|;|\[|\{)/;
 
-const NOT_A_TYPE = new Set([
+const not_type = new Set([
     'return', 'else', 'delete', 'new', 'throw', 'goto', 'case', 'using', 'typedef',
     'namespace', 'class', 'struct', 'enum', 'union', 'template', 'friend', 'public',
     'private', 'protected', 'if', 'for', 'while', 'switch', 'do',
 ]);
 
-const NOT_A_FUNCTION = new Set(['if', 'for', 'while', 'switch', 'catch', 'else', 'main']);
+const not_function = new Set(['if', 'for', 'while', 'switch', 'catch', 'else', 'main']);
 
 /**
  * Создаёт Problem по результату regex.
@@ -183,7 +183,7 @@ export function naming(text: string): Problem[] {
         if (fmatch) {
             const name = fmatch[2];
 
-            if (!NOT_A_FUNCTION.has(name) && !correct_function.test(name)) {
+            if (!not_function.has(name) && !correct_function.test(name)) {
                 probs.push(problemer(
                     'NAME-FUNC',
                     `Function "${name}" should be PascalCase, like "AddItem"`,
@@ -218,7 +218,7 @@ export function naming(text: string): Problem[] {
 
         const vmatch = any_variable.exec(line);
 
-        if (vmatch && !NOT_A_TYPE.has(first(line)) && !correct_var.test(vmatch[2])) {
+        if (vmatch && !not_type.has(first(line)) && !correct_var.test(vmatch[2])) {
             const name = vmatch[2];
 
             probs.push(problemer(
